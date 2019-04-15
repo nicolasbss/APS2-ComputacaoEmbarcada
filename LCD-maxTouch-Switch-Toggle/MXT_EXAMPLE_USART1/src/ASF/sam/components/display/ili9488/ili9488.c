@@ -700,7 +700,7 @@ uint32_t ili9488_init(struct ili9488_opt_t *p_opt)
 	ili9488_display_on();
 	ili9488_delay(100);
 
-	ili9488_set_display_direction(LANDSCAPE);
+	ili9488_set_display_direction(PORTRAIT);
 	ili9488_delay(100);
 
 	ili9488_set_window(0, 0,p_opt->ul_width,p_opt->ul_height);
