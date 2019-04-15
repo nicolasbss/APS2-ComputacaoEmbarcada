@@ -136,6 +136,8 @@ void config_buttons(){
 	numero_exagues.y = 10;
 	numero_exagues.size_x = 60;
 	numero_exagues.size_y = 60;
+	numero_exagues.image = &Next;
+	numero_exagues.p_handler = faz_qualquercoisa_callback;
 	
 	numero_centri.x = 10;
 	numero_centri.y = 90;
@@ -174,6 +176,10 @@ int processa_touch(botao *b, botao *rtn, uint N ,uint x, uint y ){
 		b++;
 	}
 	return 0;
+}
+
+void faz_qualquercoisa_callback(){
+	
 }
 
 /**
@@ -420,6 +426,7 @@ int main(void)
 	draw_left_screen();
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
+	config_buttons();
 	
 	/* Initialize stdio on USART */
 	stdio_serial_init(USART_SERIAL_EXAMPLE, &usart_serial_options);
