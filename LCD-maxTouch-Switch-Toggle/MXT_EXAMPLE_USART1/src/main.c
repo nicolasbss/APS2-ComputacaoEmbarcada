@@ -93,6 +93,7 @@
 #include "conf_uart_serial.h"
 #include "icones/next.h"
 #include "icones/previous.h"
+#include "calibri_36.h"
 
 
 #define MAX_ENTRIES        3
@@ -106,6 +107,50 @@ const uint32_t BUTTON_H = 150;
 const uint32_t BUTTON_BORDER = 2;
 const uint32_t BUTTON_X = ILI9488_LCD_WIDTH/2;
 const uint32_t BUTTON_Y = ILI9488_LCD_HEIGHT/2;
+
+ typedef struct {
+	 const uint8_t *data;
+	 uint16_t width;
+	 uint16_t height;
+	 uint8_t dataSize;
+ } tImage;
+
+typedef struct {
+	uint16_t x;
+	uint16_t y;
+	uint16_t size_x;
+	uint16_t size_y;
+	tImage *image;
+	void (*p_handler)(void);
+} botao;
+
+botao numero_exagues;
+botao numero_centri;
+botao bubbles;
+botao heavy;
+
+void config_buttons{
+	numero_exagues.x = 10;
+	numero_exagues.y = 10;
+	numero_exagues.size_x = 60;
+	numero_exagues.size_y = 60;
+	
+	numero_centri.x = 10;
+	numero_centri.y = 90;
+	numero_centri.size_x = 60;
+	numero_centri.size_y = 60;
+	
+	bubbles.x = 10;
+	bubbles.y = 170;
+	bubbles.size_x = 60;
+	bubbles.size_y = 60;
+	
+	heavy.x = 10;
+	heavy.y = 250;
+	heavy.size_x = 60;
+	heavy.size_y = 60;
+	
+}
 	
 static void configure_lcd(void){
 	/* Initialize display parameter */
@@ -116,6 +161,17 @@ static void configure_lcd(void){
 
 	/* Initialize LCD */
 	ili9488_init(&g_ili9488_display_opt);
+}
+
+int processa_touch(botao *b, botao *rtn, uint N ,uint x, uint y ){
+	for (int i=0; i<N; i++){
+		if (((x >= b->x) && (x <= b->x + b->size_x)) && ((y >= b->y) && (y <= b->y + b->size_y))){
+			*rtn = *b;
+			return 1;
+		}
+		b++;
+	}
+	return 0;
 }
 
 /**
@@ -261,7 +317,9 @@ void update_screen(uint32_t tx, uint32_t ty) {
 	}
 }
 
-void mxt_handler(struct mxt_device *device)
+
+
+void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 {
 	/* USART tx buffer initialized to 0 */
 	char tx_buf[STRING_LENGTH * MAX_ENTRIES] = {0};
@@ -290,6 +348,11 @@ void mxt_handler(struct mxt_device *device)
 				touch_event.id, touch_event.x, touch_event.y,
 				touch_event.status, conv_x, conv_y);
 		update_screen(conv_x, conv_y);
+		
+		botao but_atual;
+		if (processa_touch(botoes, &but_atual, Nbotoes, conv_x, conv_y)){
+			but_atual.p_handler();
+		}
 
 		/* Add the new string to the string buffer */
 		strcat(tx_buf, buf);
@@ -330,12 +393,14 @@ int main(void)
 
 	printf("\n\rmaXTouch data USART transmitter\n\r");
 		
-
+	botao botoes[] = {numero_centri, numero_exagues, bubbles, heavy};
+	int numero_de_botoes = 3;
+	
 	while (true) {
 		/* Check for any pending messages and run message handler if any
 		 * message is found in the queue */
 		if (mxt_is_message_pending(&device)) {
-			mxt_handler(&device);
+			mxt_handler(&device, botoes, numero_de_botoes);
 		}
 		
 	}
