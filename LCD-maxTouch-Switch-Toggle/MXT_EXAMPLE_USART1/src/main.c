@@ -108,12 +108,14 @@ const uint32_t BUTTON_BORDER = 2;
 const uint32_t BUTTON_X = ILI9488_LCD_WIDTH/2;
 const uint32_t BUTTON_Y = ILI9488_LCD_HEIGHT/2;
 
+/*
  typedef struct {
 	 const uint8_t *data;
 	 uint16_t width;
 	 uint16_t height;
 	 uint8_t dataSize;
  } tImage;
+ */
 
 typedef struct {
 	uint16_t x;
@@ -129,7 +131,7 @@ botao numero_centri;
 botao bubbles;
 botao heavy;
 
-void config_buttons{
+void config_buttons(){
 	numero_exagues.x = 10;
 	numero_exagues.y = 10;
 	numero_exagues.size_x = 60;
@@ -298,13 +300,13 @@ void draw_button(uint32_t clicked) {
 uint32_t convert_axis_system_x(uint32_t touch_y) {
 	// entrada: 4096 - 0 (sistema de coordenadas atual)
 	// saida: 0 - 320
-	return ILI9488_LCD_WIDTH - ILI9488_LCD_WIDTH*touch_y/4096;
+	return ILI9488_LCD_HEIGHT - ILI9488_LCD_HEIGHT*touch_y/4096;
 }
 
 uint32_t convert_axis_system_y(uint32_t touch_x) {
 	// entrada: 0 - 4096 (sistema de coordenadas atual)
 	// saida: 0 - 320
-	return ILI9488_LCD_HEIGHT*touch_x/4096;
+	return ILI9488_LCD_WIDTH - ILI9488_LCD_WIDTH*touch_x/4096;
 }
 
 void update_screen(uint32_t tx, uint32_t ty) {
@@ -357,6 +359,37 @@ void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 		/* Add the new string to the string buffer */
 		strcat(tx_buf, buf);
 		i++;
+		break;
+		/* Check if there is still messages in the queue and
+		 * if we have reached the maximum numbers of events */
+	} while ((mxt_is_message_pending(device)) & (i < MAX_ENTRIES));
+
+	/* If there is any entries in the buffer, send them over USART */
+	if (i > 0) {
+		usart_serial_write_packet(USART_SERIAL_EXAMPLE, (uint8_t *)tx_buf, strlen(tx_buf));
+	}
+}
+
+void mxt_debounce(struct mxt_device *device, struct botao botoes[], uint Nbotoes)
+{
+	/* USART tx buffer initialized to 0 */
+	char tx_buf[STRING_LENGTH * MAX_ENTRIES] = {0};
+	uint8_t i = 0; /* Iterator */
+
+	/* Temporary touch event data struct */
+	struct mxt_touch_event touch_event;
+
+	/* Collect touch events and put the data in a string,
+	 * maximum 2 events at the time */
+	do {
+		/* Temporary buffer for each new touch event line */
+		char buf[STRING_LENGTH];
+	
+		/* Read next next touch event in the queue, discard if read fails */
+		if (mxt_read_touch_event(device, &touch_event) != STATUS_OK) {
+			continue;
+		}	
+		i++;
 
 		/* Check if there is still messages in the queue and
 		 * if we have reached the maximum numbers of events */
@@ -401,6 +434,8 @@ int main(void)
 		 * message is found in the queue */
 		if (mxt_is_message_pending(&device)) {
 			mxt_handler(&device, botoes, numero_de_botoes);
+			delay_ms(500);
+			mxt_debounce(&device, botoes, 2);
 		}
 		
 	}
