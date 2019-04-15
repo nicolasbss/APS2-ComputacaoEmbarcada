@@ -216,15 +216,16 @@ void draw_screen(void) {
 	ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
 }
 
+void draw_left_screen(void) {
+	ili9488_draw_pixmap(0, 0, Next.width, Next.height, Next.data);
+	ili9488_draw_pixmap(0, 120, Previous.width, Previous.height, Previous.data);
+}
+
 void draw_button(uint32_t clicked) {
 	static uint32_t last_state = 255; // undefined
 	if(clicked == last_state) return;
 	
 	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_BLACK));
-	
-	ili9488_draw_pixmap(20, 0, next.width, next.height, next.data);
-	ili9488_draw_pixmap(20, 120, previous.width, previous.height, previous.data);
-	
 	ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2, BUTTON_Y-BUTTON_H/2, BUTTON_X+BUTTON_W/2, BUTTON_Y+BUTTON_H/2);
 	if(clicked) {
 		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_TOMATO));
@@ -253,9 +254,9 @@ uint32_t convert_axis_system_y(uint32_t touch_x) {
 void update_screen(uint32_t tx, uint32_t ty) {
 	if(tx >= BUTTON_X-BUTTON_W/2 && tx <= BUTTON_X + BUTTON_W/2) {
 		if(ty >= BUTTON_Y-BUTTON_H/2 && ty <= BUTTON_Y) {
-			draw_button(1);
+			//draw_button(1);
 		} else if(ty > BUTTON_Y && ty < BUTTON_Y + BUTTON_H/2) {
-			draw_button(0);
+			//draw_button(0);
 		}
 	}
 }
@@ -320,7 +321,7 @@ int main(void)
 	board_init();  /* Initialize board */
 	configure_lcd();
 	draw_screen();
-	draw_button(0);
+	draw_left_screen();
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
 	
