@@ -88,12 +88,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "conf_board.h"
-#include "conf_example.h"
-#include "conf_uart_serial.h"
-#include "icones/next.h"
-#include "icones/previous.h"
-#include "calibri_36.h"
+
 
 
 #define MAX_ENTRIES        3
@@ -126,10 +121,40 @@ typedef struct {
 	void (*p_handler)(void);
 } botao;
 
+typedef struct{
+	uint16_t x;
+	uint16_t y;
+	tImage *image;
+	}imagem;
+	
+ typedef struct {
+	 long int code;
+	 const tImage *image;
+ } tChar;
+ 
+  typedef struct {
+	  int length;
+	  const tChar *chars;
+	  char start_char;
+	  char end_char;
+  } tFont;
+	
+#include "conf_board.h"
+#include "conf_example.h"
+#include "conf_uart_serial.h"
+#include "icones/next.h"
+#include "icones/previous.h"
+#include "calibri_36.h"
+
 botao numero_exagues;
 botao numero_centri;
 botao bubbles;
 botao heavy;
+botao but_back;
+botao but_play;
+botao but_next;
+botao but_lock;
+
 	
 static void configure_lcd(void){
 	/* Initialize display parameter */
@@ -388,7 +413,6 @@ void config_buttons(){
 	numero_exagues.size_x = 60;
 	numero_exagues.size_y = 60;
 	numero_exagues.image = &Next;
-	numero_exagues.p_handler = faz_qualquercoisa_callback;
 	
 	numero_centri.x = 10;
 	numero_centri.y = 90;
@@ -404,6 +428,26 @@ void config_buttons(){
 	heavy.y = 250;
 	heavy.size_x = 60;
 	heavy.size_y = 60;
+	
+	but_play.x = 250;
+	but_play.y = 230;
+	but_play.size_x = 100;
+	but_play.size_y = 80;
+	
+	but_back.x = 130;
+	but_back.y = 230;
+	but_back.size_x = 100;
+	but_back.size_y = 80;
+	
+	but_next.x = 370;
+	but_next.y = 230;
+	but_next.size_x = 100;
+	but_next.size_y = 80;
+	
+	but_lock.x = 360;
+	but_lock.y = 10;
+	but_lock.size_x = 60;
+	but_lock.size_y = 60;
 	
 }
 
