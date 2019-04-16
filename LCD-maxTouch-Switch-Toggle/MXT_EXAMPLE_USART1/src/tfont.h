@@ -18,17 +18,17 @@ typedef struct {
 } tImage;
 */
 
- typedef struct {
-	 long int code;
-	 const tImage *image;
- } tChar;
+//  typedef struct {
+// 	 long int code;
+// 	 const tImage *image;
+//  } tChar;
  
- typedef struct {
-	 int length;
-	 const tChar *chars;
-	 char start_char;
-	 char end_char;
- } tFont;
+//  typedef struct {
+// 	 int length;
+// 	 const tChar *chars;
+// 	 char start_char;
+// 	 char end_char;
+//  } tFont;
  
 
 
