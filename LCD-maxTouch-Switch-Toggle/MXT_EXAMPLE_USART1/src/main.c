@@ -108,14 +108,14 @@ const uint32_t BUTTON_BORDER = 2;
 const uint32_t BUTTON_X = ILI9488_LCD_WIDTH/2;
 const uint32_t BUTTON_Y = ILI9488_LCD_HEIGHT/2;
 
-/*
+
  typedef struct {
 	 const uint8_t *data;
 	 uint16_t width;
 	 uint16_t height;
 	 uint8_t dataSize;
  } tImage;
- */
+
 
 typedef struct {
 	uint16_t x;
@@ -130,31 +130,6 @@ botao numero_exagues;
 botao numero_centri;
 botao bubbles;
 botao heavy;
-
-void config_buttons(){
-	numero_exagues.x = 10;
-	numero_exagues.y = 10;
-	numero_exagues.size_x = 60;
-	numero_exagues.size_y = 60;
-	numero_exagues.image = &Next;
-	numero_exagues.p_handler = faz_qualquercoisa_callback;
-	
-	numero_centri.x = 10;
-	numero_centri.y = 90;
-	numero_centri.size_x = 60;
-	numero_centri.size_y = 60;
-	
-	bubbles.x = 10;
-	bubbles.y = 170;
-	bubbles.size_x = 60;
-	bubbles.size_y = 60;
-	
-	heavy.x = 10;
-	heavy.y = 250;
-	heavy.size_x = 60;
-	heavy.size_y = 60;
-	
-}
 	
 static void configure_lcd(void){
 	/* Initialize display parameter */
@@ -176,10 +151,6 @@ int processa_touch(botao *b, botao *rtn, uint N ,uint x, uint y ){
 		b++;
 	}
 	return 0;
-}
-
-void faz_qualquercoisa_callback(){
-	
 }
 
 /**
@@ -275,14 +246,18 @@ static void mxt_init(struct mxt_device *device)
 			+ MXT_GEN_COMMANDPROCESSOR_CALIBRATE, 0x01);
 }
 
-void draw_screen(void) {
+void draw_background(void) {
 	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
 	ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
 }
 
-void draw_left_screen(void) {
-	ili9488_draw_pixmap(0, 0, Next.width, Next.height, Next.data);
-	ili9488_draw_pixmap(0, 120, Previous.width, Previous.height, Previous.data);
+void draw_screen(void) {
+	ili9488_draw_pixmap(numero_exagues.x,
+	numero_exagues.y,
+	numero_exagues.image->width,
+	numero_exagues.image->height,
+	numero_exagues.image->data);
+
 }
 
 void draw_button(uint32_t clicked) {
@@ -376,7 +351,7 @@ void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 	}
 }
 
-void mxt_debounce(struct mxt_device *device, struct botao botoes[], uint Nbotoes)
+void mxt_debounce(struct mxt_device *device, botao botoes[], uint Nbotoes)
 {
 	/* USART tx buffer initialized to 0 */
 	char tx_buf[STRING_LENGTH * MAX_ENTRIES] = {0};
@@ -407,6 +382,31 @@ void mxt_debounce(struct mxt_device *device, struct botao botoes[], uint Nbotoes
 	}
 }
 
+void config_buttons(){
+	numero_exagues.x = 10;
+	numero_exagues.y = 10;
+	numero_exagues.size_x = 60;
+	numero_exagues.size_y = 60;
+	numero_exagues.image = &Next;
+	numero_exagues.p_handler = faz_qualquercoisa_callback;
+	
+	numero_centri.x = 10;
+	numero_centri.y = 90;
+	numero_centri.size_x = 60;
+	numero_centri.size_y = 60;
+	
+	bubbles.x = 10;
+	bubbles.y = 170;
+	bubbles.size_x = 60;
+	bubbles.size_y = 60;
+	
+	heavy.x = 10;
+	heavy.y = 250;
+	heavy.size_x = 60;
+	heavy.size_y = 60;
+	
+}
+
 int main(void)
 {
 	struct mxt_device device; /* Device data container */
@@ -422,11 +422,11 @@ int main(void)
 	sysclk_init(); /* Initialize system clocks */
 	board_init();  /* Initialize board */
 	configure_lcd();
-	draw_screen();
-	draw_left_screen();
+	draw_background();
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
 	config_buttons();
+	draw_screen();
 	
 	/* Initialize stdio on USART */
 	stdio_serial_init(USART_SERIAL_EXAMPLE, &usart_serial_options);
