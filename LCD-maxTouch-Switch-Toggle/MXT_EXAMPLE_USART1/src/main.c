@@ -88,9 +88,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "maquina1.h"
 
 
-
+#define YEAR        2018
+#define MOUNTH      3
+#define DAY         19
+#define WEEK        12
 #define MAX_ENTRIES        3
 #define STRING_LENGTH     70
 
@@ -143,6 +147,7 @@ typedef struct{
 #include "conf_example.h"
 #include "conf_uart_serial.h"
 #include "calibri_36.h"
+#include "arial_72.h"
 #include "icones/centri.h"
 #include "icones/heavy.h"
 #include "icones/icon_backward.h"
@@ -163,6 +168,24 @@ botao but_play;
 botao but_next;
 botao but_lock;
 
+volatile int timer;
+volatile int hour;
+volatile int min;
+volatile int sec;
+
+void font_draw_text(tFont *font, const char *text, int x, int y, int spacing) {
+	char *p = text;
+	while(*p != NULL) {
+		char letter = *p;
+		int letter_offset = letter - font->start_char;
+		if(letter <= font->end_char) {
+			tChar *current_char = font->chars + letter_offset;
+			ili9488_draw_pixmap(x, y, current_char->image->width, current_char->image->height, current_char->image->data);
+			x += current_char->image->width + spacing;
+		}
+		p++;
+	}
+}
 	
 static void configure_lcd(void){
 	/* Initialize display parameter */
@@ -186,97 +209,30 @@ int processa_touch(botao *b, botao *rtn, uint N ,uint x, uint y ){
 	return 0;
 }
 
-/**
- * \brief Set maXTouch configuration
- *
- * This function writes a set of predefined, optimal maXTouch configuration data
- * to the maXTouch Xplained Pro.
- *
- * \param device Pointer to mxt_device struct
- */
-static void mxt_init(struct mxt_device *device)
-{
-	enum status_code status;
+t_ciclo *initMenuOrder(){
+	c_rapido.previous = &c_enxague;
+	c_rapido.next = &c_diario;
 
-	/* T8 configuration object data */
-	uint8_t t8_object[] = {
-		0x0d, 0x00, 0x05, 0x0a, 0x4b, 0x00, 0x00,
-		0x00, 0x32, 0x19
-	};
+	c_diario.previous = &c_rapido;
+	c_diario.next = &c_pesado;
 
-	/* T9 configuration object data */
-	uint8_t t9_object[] = {
-		0x8B, 0x00, 0x00, 0x0E, 0x08, 0x00, 0x80,
-		0x32, 0x05, 0x02, 0x0A, 0x03, 0x03, 0x20,
-		0x02, 0x0F, 0x0F, 0x0A, 0x00, 0x00, 0x00,
-		0x00, 0x18, 0x18, 0x20, 0x20, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x02,
-		0x02
-	};
+	c_pesado.previous = &c_diario;
+	c_pesado.next = &c_enxague;
 
-	/* T46 configuration object data */
-	uint8_t t46_object[] = {
-		0x00, 0x00, 0x18, 0x18, 0x00, 0x00, 0x03,
-		0x00, 0x00
-	};
+	c_enxague.previous = &c_pesado;
+	c_enxague.next = &c_centrifuga;
+
+	c_centrifuga.previous = &c_enxague;
+	c_centrifuga.next = &c_rapido;
+
+	return(&c_diario);
+}
+
+void draw_timer(int time_left) {
+	char A[512];
 	
-	/* T56 configuration object data */
-	uint8_t t56_object[] = {
-		0x02, 0x00, 0x01, 0x18, 0x1E, 0x1E, 0x1E,
-		0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E,
-		0x1E, 0x1E, 0x1E, 0x1E, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00
-	};
-
-	/* TWI configuration */
-	twihs_master_options_t twi_opt = {
-		.speed = MXT_TWI_SPEED,
-		.chip  = MAXTOUCH_TWI_ADDRESS,
-	};
-
-	status = (enum status_code)twihs_master_setup(MAXTOUCH_TWI_INTERFACE, &twi_opt);
-	Assert(status == STATUS_OK);
-
-	/* Initialize the maXTouch device */
-	status = mxt_init_device(device, MAXTOUCH_TWI_INTERFACE,
-			MAXTOUCH_TWI_ADDRESS, MAXTOUCH_XPRO_CHG_PIO);
-	Assert(status == STATUS_OK);
-
-	/* Issue soft reset of maXTouch device by writing a non-zero value to
-	 * the reset register */
-	mxt_write_config_reg(device, mxt_get_object_address(device,
-			MXT_GEN_COMMANDPROCESSOR_T6, 0)
-			+ MXT_GEN_COMMANDPROCESSOR_RESET, 0x01);
-
-	/* Wait for the reset of the device to complete */
-	delay_ms(MXT_RESET_TIME);
-
-	/* Write data to configuration registers in T7 configuration object */
-	mxt_write_config_reg(device, mxt_get_object_address(device,
-			MXT_GEN_POWERCONFIG_T7, 0) + 0, 0x20);
-	mxt_write_config_reg(device, mxt_get_object_address(device,
-			MXT_GEN_POWERCONFIG_T7, 0) + 1, 0x10);
-	mxt_write_config_reg(device, mxt_get_object_address(device,
-			MXT_GEN_POWERCONFIG_T7, 0) + 2, 0x4b);
-	mxt_write_config_reg(device, mxt_get_object_address(device,
-			MXT_GEN_POWERCONFIG_T7, 0) + 3, 0x84);
-
-	/* Write predefined configuration data to configuration objects */
-	mxt_write_config_object(device, mxt_get_object_address(device,
-			MXT_GEN_ACQUISITIONCONFIG_T8, 0), &t8_object);
-	mxt_write_config_object(device, mxt_get_object_address(device,
-			MXT_TOUCH_MULTITOUCHSCREEN_T9, 0), &t9_object);
-	mxt_write_config_object(device, mxt_get_object_address(device,
-			MXT_SPT_CTE_CONFIGURATION_T46, 0), &t46_object);
-	mxt_write_config_object(device, mxt_get_object_address(device,
-			MXT_PROCI_SHIELDLESS_T56, 0), &t56_object);
-
-	/* Issue recalibration command to maXTouch device by writing a non-zero
-	 * value to the calibrate register */
-	mxt_write_config_reg(device, mxt_get_object_address(device,
-			MXT_GEN_COMMANDPROCESSOR_T6, 0)
-			+ MXT_GEN_COMMANDPROCESSOR_CALIBRATE, 0x01);
+	sprintf(A, "%d", time_left);
+	font_draw_text(&calibri_36, A, 50, 150, 1);
 }
 
 void draw_background(void) {
@@ -365,17 +321,90 @@ uint32_t convert_axis_system_y(uint32_t touch_x) {
 	return ILI9488_LCD_WIDTH - ILI9488_LCD_WIDTH*touch_x/4096;
 }
 
-void update_screen(uint32_t tx, uint32_t ty) {
-	if(tx >= BUTTON_X-BUTTON_W/2 && tx <= BUTTON_X + BUTTON_W/2) {
-		if(ty >= BUTTON_Y-BUTTON_H/2 && ty <= BUTTON_Y) {
-			//draw_button(1);
-		} else if(ty > BUTTON_Y && ty < BUTTON_Y + BUTTON_H/2) {
-			//draw_button(0);
-		}
-	}
+static void mxt_init(struct mxt_device *device)
+{
+	enum status_code status;
+
+	/* T8 configuration object data */
+	uint8_t t8_object[] = {
+		0x0d, 0x00, 0x05, 0x0a, 0x4b, 0x00, 0x00,
+		0x00, 0x32, 0x19
+	};
+
+	/* T9 configuration object data */
+	uint8_t t9_object[] = {
+		0x8B, 0x00, 0x00, 0x0E, 0x08, 0x00, 0x80,
+		0x32, 0x05, 0x02, 0x0A, 0x03, 0x03, 0x20,
+		0x02, 0x0F, 0x0F, 0x0A, 0x00, 0x00, 0x00,
+		0x00, 0x18, 0x18, 0x20, 0x20, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x02,
+		0x02
+	};
+
+	/* T46 configuration object data */
+	uint8_t t46_object[] = {
+		0x00, 0x00, 0x18, 0x18, 0x00, 0x00, 0x03,
+		0x00, 0x00
+	};
+	
+	/* T56 configuration object data */
+	uint8_t t56_object[] = {
+		0x02, 0x00, 0x01, 0x18, 0x1E, 0x1E, 0x1E,
+		0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E,
+		0x1E, 0x1E, 0x1E, 0x1E, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00
+	};
+
+	/* TWI configuration */
+	twihs_master_options_t twi_opt = {
+		.speed = MXT_TWI_SPEED,
+		.chip  = MAXTOUCH_TWI_ADDRESS,
+	};
+
+	status = (enum status_code)twihs_master_setup(MAXTOUCH_TWI_INTERFACE, &twi_opt);
+	Assert(status == STATUS_OK);
+
+	/* Initialize the maXTouch device */
+	status = mxt_init_device(device, MAXTOUCH_TWI_INTERFACE,
+			MAXTOUCH_TWI_ADDRESS, MAXTOUCH_XPRO_CHG_PIO);
+	Assert(status == STATUS_OK);
+
+	/* Issue soft reset of maXTouch device by writing a non-zero value to
+	 * the reset register */
+	mxt_write_config_reg(device, mxt_get_object_address(device,
+			MXT_GEN_COMMANDPROCESSOR_T6, 0)
+			+ MXT_GEN_COMMANDPROCESSOR_RESET, 0x01);
+
+	/* Wait for the reset of the device to complete */
+	delay_ms(MXT_RESET_TIME);
+
+	/* Write data to configuration registers in T7 configuration object */
+	mxt_write_config_reg(device, mxt_get_object_address(device,
+			MXT_GEN_POWERCONFIG_T7, 0) + 0, 0x20);
+	mxt_write_config_reg(device, mxt_get_object_address(device,
+			MXT_GEN_POWERCONFIG_T7, 0) + 1, 0x10);
+	mxt_write_config_reg(device, mxt_get_object_address(device,
+			MXT_GEN_POWERCONFIG_T7, 0) + 2, 0x4b);
+	mxt_write_config_reg(device, mxt_get_object_address(device,
+			MXT_GEN_POWERCONFIG_T7, 0) + 3, 0x84);
+
+	/* Write predefined configuration data to configuration objects */
+	mxt_write_config_object(device, mxt_get_object_address(device,
+			MXT_GEN_ACQUISITIONCONFIG_T8, 0), &t8_object);
+	mxt_write_config_object(device, mxt_get_object_address(device,
+			MXT_TOUCH_MULTITOUCHSCREEN_T9, 0), &t9_object);
+	mxt_write_config_object(device, mxt_get_object_address(device,
+			MXT_SPT_CTE_CONFIGURATION_T46, 0), &t46_object);
+	mxt_write_config_object(device, mxt_get_object_address(device,
+			MXT_PROCI_SHIELDLESS_T56, 0), &t56_object);
+
+	/* Issue recalibration command to maXTouch device by writing a non-zero
+	 * value to the calibrate register */
+	mxt_write_config_reg(device, mxt_get_object_address(device,
+			MXT_GEN_COMMANDPROCESSOR_T6, 0)
+			+ MXT_GEN_COMMANDPROCESSOR_CALIBRATE, 0x01);
 }
-
-
 
 void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 {
@@ -405,7 +434,6 @@ void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 		sprintf(buf, "Nr: %1d, X:%4d, Y:%4d, Status:0x%2x conv X:%3d Y:%3d\n\r",
 				touch_event.id, touch_event.x, touch_event.y,
 				touch_event.status, conv_x, conv_y);
-		update_screen(conv_x, conv_y);
 		
 		botao but_atual;
 		if (processa_touch(botoes, &but_atual, Nbotoes, conv_x, conv_y)){
@@ -524,6 +552,7 @@ int main(void)
 	board_init();  /* Initialize board */
 	configure_lcd();
 	draw_background();
+	initMenuOrder();
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
 	config_buttons();
