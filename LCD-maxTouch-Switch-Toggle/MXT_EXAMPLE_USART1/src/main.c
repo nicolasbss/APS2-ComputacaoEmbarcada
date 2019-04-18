@@ -90,11 +90,6 @@
 #include <string.h>
 #include "maquina1.h"
 
-
-#define YEAR        2018
-#define MOUNTH      3
-#define DAY         19
-#define WEEK        12
 #define MAX_ENTRIES        3
 #define STRING_LENGTH     70
 
@@ -114,7 +109,6 @@ const uint32_t BUTTON_Y = ILI9488_LCD_HEIGHT/2;
 	 uint16_t height;
 	 uint8_t dataSize;
  } tImage;
-
 
 typedef struct {
 	uint16_t x;
@@ -171,6 +165,7 @@ volatile int timer;
 volatile int hour;
 volatile int min;
 volatile int sec;
+volatile int f_rtt_alarme;
 
 void font_draw_text(tFont *font, const char *text, int x, int y, int spacing) {
 	char *p = text;
@@ -227,10 +222,10 @@ t_ciclo *initMenuOrder(){
 	return(&c_diario);
 }
 
-void draw_timer(int time_left) {
+void draw_timer() {
 	char A[512];
 	
-	sprintf(A, "%d", time_left);
+	sprintf(A, "%d", timer);
 	font_draw_text(&calibri_36, A, 50, 150, 1);
 }
 
@@ -312,6 +307,27 @@ uint32_t convert_axis_system_y(uint32_t touch_x) {
 	// entrada: 0 - 4096 (sistema de coordenadas atual)
 	// saida: 0 - 320
 	return ILI9488_LCD_WIDTH - ILI9488_LCD_WIDTH*touch_x/4096;
+}
+
+static void RTT_init(uint16_t pllPreScale, uint32_t IrqNPulses)
+{
+	uint32_t ul_previous_time;
+
+	/* Configure RTT for a 1 second tick interrupt */
+	rtt_sel_source(RTT, false);
+	rtt_init(RTT, pllPreScale);
+	
+	ul_previous_time = rtt_read_timer_value(RTT);
+	while (ul_previous_time == rtt_read_timer_value(RTT));
+	
+	rtt_write_alarm_time(RTT, IrqNPulses+ul_previous_time);
+
+	/* Enable RTT interrupt */
+	NVIC_DisableIRQ(RTT_IRQn);
+	NVIC_ClearPendingIRQ(RTT_IRQn);
+	NVIC_SetPriority(RTT_IRQn, 0);
+	NVIC_EnableIRQ(RTT_IRQn);
+	rtt_enable_interrupt(RTT, RTT_MR_ALMIEN);
 }
 
 static void mxt_init(struct mxt_device *device)
@@ -399,8 +415,25 @@ static void mxt_init(struct mxt_device *device)
 			+ MXT_GEN_COMMANDPROCESSOR_CALIBRATE, 0x01);
 }
 
+void RTT_Handler(void)
+{
+	uint32_t ul_status;
+
+	/* Get RTT status */
+	ul_status = rtt_get_status(RTT);
+
+	/* IRQ due to Time has changed */
+	if ((ul_status & RTT_SR_RTTINC) == RTT_SR_RTTINC) {  }
+
+	/* IRQ due to Alarm */
+	if ((ul_status & RTT_SR_ALMS) == RTT_SR_ALMS) {
+		f_rtt_alarme = true;
+	}
+}
+
 void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 {
+	int last_status;
 	/* USART tx buffer initialized to 0 */
 	char tx_buf[STRING_LENGTH * MAX_ENTRIES] = {0};
 	uint8_t i = 0; /* Iterator */
@@ -428,11 +461,17 @@ void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 				touch_event.id, touch_event.x, touch_event.y,
 				touch_event.status, conv_x, conv_y);
 		
-		botao but_atual;
-		if (processa_touch(botoes, &but_atual, Nbotoes, conv_x, conv_y)){
-			but_atual.p_handler();
+		
+		
+		last_status = touch_event.status;
+		
+		if (last_status < 60) {
+			botao but_atual;
+			if (processa_touch(botoes, &but_atual, Nbotoes, conv_x, conv_y)){
+				but_atual.p_handler();
+			}
 		}
-
+		
 		/* Add the new string to the string buffer */
 		strcat(tx_buf, buf);
 		i++;
@@ -447,36 +486,6 @@ void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 	}
 }
 
-void mxt_debounce(struct mxt_device *device, botao botoes[], uint Nbotoes)
-{
-	/* USART tx buffer initialized to 0 */
-	char tx_buf[STRING_LENGTH * MAX_ENTRIES] = {0};
-	uint8_t i = 0; /* Iterator */
-
-	/* Temporary touch event data struct */
-	struct mxt_touch_event touch_event;
-
-	/* Collect touch events and put the data in a string,
-	 * maximum 2 events at the time */
-	do {
-		/* Temporary buffer for each new touch event line */
-		char buf[STRING_LENGTH];
-	
-		/* Read next next touch event in the queue, discard if read fails */
-		if (mxt_read_touch_event(device, &touch_event) != STATUS_OK) {
-			continue;
-		}	
-		i++;
-
-		/* Check if there is still messages in the queue and
-		 * if we have reached the maximum numbers of events */
-	} while ((mxt_is_message_pending(device)) & (i < MAX_ENTRIES));
-
-	/* If there is any entries in the buffer, send them over USART */
-	if (i > 0) {
-		usart_serial_write_packet(USART_SERIAL_EXAMPLE, (uint8_t *)tx_buf, strlen(tx_buf));
-	}
-}
 
 void config_buttons(){
 	numero_exagues.x = 10;
@@ -558,13 +567,35 @@ int main(void)
 	botao botoes[] = {numero_centri, numero_exagues, bubbles, heavy};
 	int numero_de_botoes = 3;
 	
+	t_ciclo *p_cAtual = initMenuOrder();
+	
+	p_cAtual = p_cAtual->next;
+	
+	p_cAtual = p_cAtual->next;
+	ili9488_set_foreground_color(COLOR_BLACK);
+	ili9488_draw_string(220, 130, p_cAtual->nome);
+	
 	while (true) {
 		/* Check for any pending messages and run message handler if any
 		 * message is found in the queue */
 		if (mxt_is_message_pending(&device)) {
 			mxt_handler(&device, botoes, numero_de_botoes);
-			delay_ms(500);
-			mxt_debounce(&device, botoes, 2);
+		}
+		
+		if (f_rtt_alarme){
+			
+			uint16_t pllPreScale = (int) (((float) 32768) / 1.0);
+			uint32_t irqRTTvalue  = 60; // 1 minuto
+			
+			// reinicia RTT para gerar um novo IRQ
+			RTT_init(pllPreScale, irqRTTvalue);
+			
+			draw_timer();
+			/*
+			* CLEAR FLAG
+			*/
+			f_rtt_alarme = false;
+
 		}
 		
 	}
