@@ -142,9 +142,16 @@ typedef struct{
 #include "conf_board.h"
 #include "conf_example.h"
 #include "conf_uart_serial.h"
-#include "icones/next.h"
-#include "icones/previous.h"
 #include "calibri_36.h"
+#include "icones/centri.h"
+#include "icones/heavy.h"
+#include "icones/icon_backward.h"
+#include "icones/icon_forward.h"
+#include "icones/next.h"
+#include "icones/play.h"
+#include "icones/previous.h"
+#include "icones/wash.h"
+#include "icones/water.h"
 
 botao numero_exagues;
 botao numero_centri;
@@ -282,6 +289,42 @@ void draw_screen(void) {
 	numero_exagues.image->width,
 	numero_exagues.image->height,
 	numero_exagues.image->data);
+	
+	ili9488_draw_pixmap(numero_centri.x,
+	numero_centri.y,
+	numero_centri.image->width,
+	numero_centri.image->height,
+	numero_centri.image->data);
+	
+	ili9488_draw_pixmap(bubbles.x,
+	bubbles.y,
+	bubbles.image->width,
+	bubbles.image->height,
+	bubbles.image->data);
+	
+	ili9488_draw_pixmap(heavy.x,
+	heavy.y,
+	heavy.image->width,
+	heavy.image->height,
+	heavy.image->data);
+	
+	ili9488_draw_pixmap(but_back.x,
+	but_back.y,
+	but_back.image->width,
+	but_back.image->height,
+	but_back.image->data);
+	
+	ili9488_draw_pixmap(but_next.x,
+	but_next.y,
+	but_next.image->width,
+	but_next.image->height,
+	but_next.image->data);
+	
+	ili9488_draw_pixmap(but_play.x,
+	but_play.y,
+	but_play.image->width,
+	but_play.image->height,
+	but_play.image->data);
 
 }
 
@@ -412,37 +455,43 @@ void config_buttons(){
 	numero_exagues.y = 10;
 	numero_exagues.size_x = 60;
 	numero_exagues.size_y = 60;
-	numero_exagues.image = &Next;
+	numero_exagues.image = &water;
 	
 	numero_centri.x = 10;
 	numero_centri.y = 90;
 	numero_centri.size_x = 60;
 	numero_centri.size_y = 60;
+	numero_centri.image = &recyclewater;
 	
 	bubbles.x = 10;
 	bubbles.y = 170;
 	bubbles.size_x = 60;
 	bubbles.size_y = 60;
+	bubbles.image = &wash;
 	
 	heavy.x = 10;
 	heavy.y = 250;
 	heavy.size_x = 60;
 	heavy.size_y = 60;
+	heavy.image = &tumbledry;
 	
 	but_play.x = 250;
 	but_play.y = 230;
 	but_play.size_x = 100;
 	but_play.size_y = 80;
+	but_play.image = &forwardbuttonformultimedia;
 	
 	but_back.x = 130;
 	but_back.y = 230;
 	but_back.size_x = 100;
 	but_back.size_y = 80;
+	but_back.image = &icon_backward;
 	
 	but_next.x = 370;
 	but_next.y = 230;
 	but_next.size_x = 100;
 	but_next.size_y = 80;
+	but_next.image = &icon_forward;
 	
 	but_lock.x = 360;
 	but_lock.y = 10;
