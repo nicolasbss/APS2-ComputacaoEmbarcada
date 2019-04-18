@@ -88,9 +88,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "maquina1.h"
 
 
-
+#define YEAR        2018
+#define MOUNTH      3
+#define DAY         19
+#define WEEK        12
+#define HOUR        15
+#define MINUTE      45
+#define SECOND      10
 #define MAX_ENTRIES        3
 #define STRING_LENGTH     70
 
@@ -143,6 +150,7 @@ typedef struct{
 #include "conf_example.h"
 #include "conf_uart_serial.h"
 #include "calibri_36.h"
+#include "arial_72.h"
 #include "icones/centri.h"
 #include "icones/heavy.h"
 #include "icones/icon_backward.h"
@@ -162,6 +170,22 @@ botao but_play;
 botao but_next;
 botao but_lock;
 
+volatile int timer;
+
+
+void font_draw_text(tFont *font, const char *text, int x, int y, int spacing) {
+	char *p = text;
+	while(*p != NULL) {
+		char letter = *p;
+		int letter_offset = letter - font->start_char;
+		if(letter <= font->end_char) {
+			tChar *current_char = font->chars + letter_offset;
+			ili9488_draw_pixmap(x, y, current_char->image->width, current_char->image->height, current_char->image->data);
+			x += current_char->image->width + spacing;
+		}
+		p++;
+	}
+}
 	
 static void configure_lcd(void){
 	/* Initialize display parameter */
@@ -185,14 +209,134 @@ int processa_touch(botao *b, botao *rtn, uint N ,uint x, uint y ){
 	return 0;
 }
 
-/**
- * \brief Set maXTouch configuration
- *
- * This function writes a set of predefined, optimal maXTouch configuration data
- * to the maXTouch Xplained Pro.
- *
- * \param device Pointer to mxt_device struct
- */
+t_ciclo *initMenuOrder(){
+	c_rapido.previous = &c_enxague;
+	c_rapido.next = &c_diario;
+
+	c_diario.previous = &c_rapido;
+	c_diario.next = &c_pesado;
+
+	c_pesado.previous = &c_diario;
+	c_pesado.next = &c_enxague;
+
+	c_enxague.previous = &c_pesado;
+	c_enxague.next = &c_centrifuga;
+
+	c_centrifuga.previous = &c_enxague;
+	c_centrifuga.next = &c_rapido;
+
+	return(&c_diario);
+}
+
+void draw_timer(int time_left) {
+	char A[512];
+	
+	sprintf(A, "%d", time_left);
+	font_draw_text(&calibri_36, A, 50, 150, 1);
+}
+
+void draw_background(void) {
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+	ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
+}
+
+void draw_screen(void) {
+	ili9488_draw_pixmap(numero_exagues.x,
+	numero_exagues.y,
+	numero_exagues.image->width,
+	numero_exagues.image->height,
+	numero_exagues.image->data);
+	
+	ili9488_draw_pixmap(numero_centri.x,
+	numero_centri.y,
+	numero_centri.image->width,
+	numero_centri.image->height,
+	numero_centri.image->data);
+	
+	ili9488_draw_pixmap(bubbles.x,
+	bubbles.y,
+	bubbles.image->width,
+	bubbles.image->height,
+	bubbles.image->data);
+	
+	ili9488_draw_pixmap(heavy.x,
+	heavy.y,
+	heavy.image->width,
+	heavy.image->height,
+	heavy.image->data);
+	
+	ili9488_draw_pixmap(but_back.x,
+	but_back.y,
+	but_back.image->width,
+	but_back.image->height,
+	but_back.image->data);
+	
+	ili9488_draw_pixmap(but_next.x,
+	but_next.y,
+	but_next.image->width,
+	but_next.image->height,
+	but_next.image->data);
+	
+	ili9488_draw_pixmap(but_play.x,
+	but_play.y,
+	but_play.image->width,
+	but_play.image->height,
+	but_play.image->data);
+
+}
+
+void draw_button(uint32_t clicked) {
+	static uint32_t last_state = 255; // undefined
+	if(clicked == last_state) return;
+	
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_BLACK));
+	ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2, BUTTON_Y-BUTTON_H/2, BUTTON_X+BUTTON_W/2, BUTTON_Y+BUTTON_H/2);
+	if(clicked) {
+		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_TOMATO));
+		ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2+BUTTON_BORDER, BUTTON_Y+BUTTON_BORDER, BUTTON_X+BUTTON_W/2-BUTTON_BORDER, BUTTON_Y+BUTTON_H/2-BUTTON_BORDER);
+		
+	} else {
+		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_GREEN));
+		ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2+BUTTON_BORDER, BUTTON_Y-BUTTON_H/2+BUTTON_BORDER, BUTTON_X+BUTTON_W/2-BUTTON_BORDER, BUTTON_Y-BUTTON_BORDER);
+		
+	}
+	last_state = clicked;
+}
+
+uint32_t convert_axis_system_x(uint32_t touch_y) {
+	// entrada: 4096 - 0 (sistema de coordenadas atual)
+	// saida: 0 - 320
+	return ILI9488_LCD_HEIGHT - ILI9488_LCD_HEIGHT*touch_y/4096;
+}
+
+uint32_t convert_axis_system_y(uint32_t touch_x) {
+	// entrada: 0 - 4096 (sistema de coordenadas atual)
+	// saida: 0 - 320
+	return ILI9488_LCD_WIDTH - ILI9488_LCD_WIDTH*touch_x/4096;
+}
+
+void RTC_init(){
+	/* Configura o PMC */
+	pmc_enable_periph_clk(ID_RTC);
+
+	/* Default RTC configuration, 24-hour mode */
+	rtc_set_hour_mode(RTC, 0);
+
+	/* Configura data e hora manualmente */
+	rtc_set_date(RTC, YEAR, MOUNTH, DAY, WEEK);
+	rtc_set_time(RTC, HOUR, MINUTE, SECOND);
+
+	/* Configure RTC interrupts */
+
+	NVIC_DisableIRQ(RTC_IRQn);
+	NVIC_ClearPendingIRQ(RTC_IRQn);
+	NVIC_SetPriority(RTC_IRQn, 0);
+	NVIC_EnableIRQ(RTC_IRQn);
+
+	rtc_enable_interrupt(RTC,  RTC_IER_ALREN);
+
+}
+
 static void mxt_init(struct mxt_device *device)
 {
 	enum status_code status;
@@ -278,97 +422,29 @@ static void mxt_init(struct mxt_device *device)
 			+ MXT_GEN_COMMANDPROCESSOR_CALIBRATE, 0x01);
 }
 
-void draw_background(void) {
-	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
-	ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
-}
+void RTC_Handler(void){
+	uint32_t ul_status = rtc_get_status(RTC);
 
-void draw_screen(void) {
-	ili9488_draw_pixmap(numero_exagues.x,
-	numero_exagues.y,
-	numero_exagues.image->width,
-	numero_exagues.image->height,
-	numero_exagues.image->data);
-	
-	ili9488_draw_pixmap(numero_centri.x,
-	numero_centri.y,
-	numero_centri.image->width,
-	numero_centri.image->height,
-	numero_centri.image->data);
-	
-	ili9488_draw_pixmap(bubbles.x,
-	bubbles.y,
-	bubbles.image->width,
-	bubbles.image->height,
-	bubbles.image->data);
-	
-	ili9488_draw_pixmap(heavy.x,
-	heavy.y,
-	heavy.image->width,
-	heavy.image->height,
-	heavy.image->data);
-	
-	ili9488_draw_pixmap(but_back.x,
-	but_back.y,
-	but_back.image->width,
-	but_back.image->height,
-	but_back.image->data);
-	
-	ili9488_draw_pixmap(but_next.x,
-	but_next.y,
-	but_next.image->width,
-	but_next.image->height,
-	but_next.image->data);
-	
-	ili9488_draw_pixmap(but_play.x,
-	but_play.y,
-	but_play.image->width,
-	but_play.image->height,
-	but_play.image->data);
-
-}
-
-void draw_button(uint32_t clicked) {
-	static uint32_t last_state = 255; // undefined
-	if(clicked == last_state) return;
-	
-	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_BLACK));
-	ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2, BUTTON_Y-BUTTON_H/2, BUTTON_X+BUTTON_W/2, BUTTON_Y+BUTTON_H/2);
-	if(clicked) {
-		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_TOMATO));
-		ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2+BUTTON_BORDER, BUTTON_Y+BUTTON_BORDER, BUTTON_X+BUTTON_W/2-BUTTON_BORDER, BUTTON_Y+BUTTON_H/2-BUTTON_BORDER);
-		
-	} else {
-		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_GREEN));
-		ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2+BUTTON_BORDER, BUTTON_Y-BUTTON_H/2+BUTTON_BORDER, BUTTON_X+BUTTON_W/2-BUTTON_BORDER, BUTTON_Y-BUTTON_BORDER);
-		
+	/*
+	*  Verifica por qual motivo entrou
+	*  na interrupcao, se foi por segundo
+	*  ou Alarm
+	*/
+	if ((ul_status & RTC_SR_SEC) == RTC_SR_SEC) {
+		rtc_clear_status(RTC, RTC_SCCR_SECCLR);
 	}
-	last_state = clicked;
-}
-
-uint32_t convert_axis_system_x(uint32_t touch_y) {
-	// entrada: 4096 - 0 (sistema de coordenadas atual)
-	// saida: 0 - 320
-	return ILI9488_LCD_HEIGHT - ILI9488_LCD_HEIGHT*touch_y/4096;
-}
-
-uint32_t convert_axis_system_y(uint32_t touch_x) {
-	// entrada: 0 - 4096 (sistema de coordenadas atual)
-	// saida: 0 - 320
-	return ILI9488_LCD_WIDTH - ILI9488_LCD_WIDTH*touch_x/4096;
-}
-
-void update_screen(uint32_t tx, uint32_t ty) {
-	if(tx >= BUTTON_X-BUTTON_W/2 && tx <= BUTTON_X + BUTTON_W/2) {
-		if(ty >= BUTTON_Y-BUTTON_H/2 && ty <= BUTTON_Y) {
-			//draw_button(1);
-		} else if(ty > BUTTON_Y && ty < BUTTON_Y + BUTTON_H/2) {
-			//draw_button(0);
-		}
+	/* Time or date alarm */
+	if ((ul_status & RTC_SR_ALARM) == RTC_SR_ALARM) {
+			rtc_clear_status(RTC, RTC_SCCR_ALRCLR);
+			
 	}
+	
+	rtc_clear_status(RTC, RTC_SCCR_ACKCLR);
+	rtc_clear_status(RTC, RTC_SCCR_TIMCLR);
+	rtc_clear_status(RTC, RTC_SCCR_CALCLR);
+	rtc_clear_status(RTC, RTC_SCCR_TDERRCLR);
+	
 }
-
-
 
 void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 {
@@ -398,7 +474,6 @@ void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 		sprintf(buf, "Nr: %1d, X:%4d, Y:%4d, Status:0x%2x conv X:%3d Y:%3d\n\r",
 				touch_event.id, touch_event.x, touch_event.y,
 				touch_event.status, conv_x, conv_y);
-		update_screen(conv_x, conv_y);
 		
 		botao but_atual;
 		if (processa_touch(botoes, &but_atual, Nbotoes, conv_x, conv_y)){
@@ -516,6 +591,7 @@ int main(void)
 	board_init();  /* Initialize board */
 	configure_lcd();
 	draw_background();
+	initMenuOrder();
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
 	config_buttons();
