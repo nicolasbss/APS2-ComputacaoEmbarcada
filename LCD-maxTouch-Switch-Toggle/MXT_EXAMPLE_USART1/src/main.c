@@ -95,9 +95,6 @@
 #define MOUNTH      3
 #define DAY         19
 #define WEEK        12
-#define HOUR        15
-#define MINUTE      45
-#define SECOND      10
 #define MAX_ENTRIES        3
 #define STRING_LENGTH     70
 
@@ -171,7 +168,9 @@ botao but_next;
 botao but_lock;
 
 volatile int timer;
-
+volatile int hour;
+volatile int min;
+volatile int sec;
 
 void font_draw_text(tFont *font, const char *text, int x, int y, int spacing) {
 	char *p = text;
@@ -315,28 +314,6 @@ uint32_t convert_axis_system_y(uint32_t touch_x) {
 	return ILI9488_LCD_WIDTH - ILI9488_LCD_WIDTH*touch_x/4096;
 }
 
-void RTC_init(){
-	/* Configura o PMC */
-	pmc_enable_periph_clk(ID_RTC);
-
-	/* Default RTC configuration, 24-hour mode */
-	rtc_set_hour_mode(RTC, 0);
-
-	/* Configura data e hora manualmente */
-	rtc_set_date(RTC, YEAR, MOUNTH, DAY, WEEK);
-	rtc_set_time(RTC, HOUR, MINUTE, SECOND);
-
-	/* Configure RTC interrupts */
-
-	NVIC_DisableIRQ(RTC_IRQn);
-	NVIC_ClearPendingIRQ(RTC_IRQn);
-	NVIC_SetPriority(RTC_IRQn, 0);
-	NVIC_EnableIRQ(RTC_IRQn);
-
-	rtc_enable_interrupt(RTC,  RTC_IER_ALREN);
-
-}
-
 static void mxt_init(struct mxt_device *device)
 {
 	enum status_code status;
@@ -420,30 +397,6 @@ static void mxt_init(struct mxt_device *device)
 	mxt_write_config_reg(device, mxt_get_object_address(device,
 			MXT_GEN_COMMANDPROCESSOR_T6, 0)
 			+ MXT_GEN_COMMANDPROCESSOR_CALIBRATE, 0x01);
-}
-
-void RTC_Handler(void){
-	uint32_t ul_status = rtc_get_status(RTC);
-
-	/*
-	*  Verifica por qual motivo entrou
-	*  na interrupcao, se foi por segundo
-	*  ou Alarm
-	*/
-	if ((ul_status & RTC_SR_SEC) == RTC_SR_SEC) {
-		rtc_clear_status(RTC, RTC_SCCR_SECCLR);
-	}
-	/* Time or date alarm */
-	if ((ul_status & RTC_SR_ALARM) == RTC_SR_ALARM) {
-			rtc_clear_status(RTC, RTC_SCCR_ALRCLR);
-			
-	}
-	
-	rtc_clear_status(RTC, RTC_SCCR_ACKCLR);
-	rtc_clear_status(RTC, RTC_SCCR_TIMCLR);
-	rtc_clear_status(RTC, RTC_SCCR_CALCLR);
-	rtc_clear_status(RTC, RTC_SCCR_TDERRCLR);
-	
 }
 
 void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
