@@ -167,6 +167,44 @@ volatile int hour;
 volatile int min;
 volatile int sec;
 volatile int f_rtt_alarme;
+volatile t_ciclo *ciclo_atual;
+
+volatile int f_but_back = 0;
+
+void draw_cicle(void);
+
+void numero_exagues_callback(void) {
+	
+}
+
+void numero_centri_callback(void) {
+	
+}
+
+void bubbles_callback(void) {
+	
+}
+
+void heavy_callback(void) {
+	
+}
+
+void but_play_callback(void) {
+	
+}
+
+void but_back_callback(void) {
+	f_but_back = 1;
+}
+
+void but_next_callback(void) {
+	ciclo_atual=ciclo_atual->next;
+	draw_cicle();
+}
+
+void but_lock_callback(void) {
+	
+}
 
 void font_draw_text(tFont *font, const char *text, int x, int y, int spacing) {
 	char *p = text;
@@ -286,22 +324,9 @@ void draw_screen(void) {
 
 }
 
-void draw_button(uint32_t clicked) {
-	static uint32_t last_state = 255; // undefined
-	if(clicked == last_state) return;
-	
-	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_BLACK));
-	ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2, BUTTON_Y-BUTTON_H/2, BUTTON_X+BUTTON_W/2, BUTTON_Y+BUTTON_H/2);
-	if(clicked) {
-		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_TOMATO));
-		ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2+BUTTON_BORDER, BUTTON_Y+BUTTON_BORDER, BUTTON_X+BUTTON_W/2-BUTTON_BORDER, BUTTON_Y+BUTTON_H/2-BUTTON_BORDER);
-		
-	} else {
-		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_GREEN));
-		ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2+BUTTON_BORDER, BUTTON_Y-BUTTON_H/2+BUTTON_BORDER, BUTTON_X+BUTTON_W/2-BUTTON_BORDER, BUTTON_Y-BUTTON_BORDER);
-		
-	}
-	last_state = clicked;
+void draw_cicle(void) {
+	ili9488_set_foreground_color(COLOR_BLACK);
+	ili9488_draw_string(220, 130, ciclo_atual->nome);
 }
 
 uint32_t convert_axis_system_x(uint32_t touch_y) {
@@ -493,55 +518,62 @@ void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 	}
 }
 
-
 void config_buttons(){
 	numero_exagues.x = 10;
 	numero_exagues.y = 10;
 	numero_exagues.size_x = 60;
 	numero_exagues.size_y = 60;
 	numero_exagues.image = &water;
+	numero_exagues.p_handler = numero_exagues_callback;
 	
 	numero_centri.x = 10;
 	numero_centri.y = 90;
 	numero_centri.size_x = 60;
 	numero_centri.size_y = 60;
 	numero_centri.image = &recyclewater;
+	numero_centri.p_handler = numero_centri_callback;
 	
 	bubbles.x = 10;
 	bubbles.y = 170;
 	bubbles.size_x = 60;
 	bubbles.size_y = 60;
 	bubbles.image = &wash;
+	bubbles.p_handler = bubbles_callback;
 	
 	heavy.x = 10;
 	heavy.y = 250;
 	heavy.size_x = 60;
 	heavy.size_y = 60;
 	heavy.image = &tumbledry;
+	heavy.p_handler = heavy_callback;
 	
 	but_play.x = 250;
 	but_play.y = 230;
 	but_play.size_x = 100;
 	but_play.size_y = 80;
 	but_play.image = &forwardbuttonformultimedia;
+	but_play.p_handler = but_play_callback;
 	
 	but_back.x = 130;
 	but_back.y = 230;
 	but_back.size_x = 100;
 	but_back.size_y = 80;
 	but_back.image = &icon_backward;
+	but_back.p_handler = but_back_callback;
 	
 	but_next.x = 370;
 	but_next.y = 230;
 	but_next.size_x = 100;
 	but_next.size_y = 80;
 	but_next.image = &icon_forward;
+	but_next.p_handler = but_next_callback;
 	
 	but_lock.x = 360;
 	but_lock.y = 10;
 	but_lock.size_x = 60;
 	but_lock.size_y = 60;
 	but_lock.image = &lock;
+	but_lock.p_handler = but_lock_callback;
 	
 }
 
@@ -561,7 +593,6 @@ int main(void)
 	board_init();  /* Initialize board */
 	configure_lcd();
 	draw_background();
-	initMenuOrder();
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
 	config_buttons();
@@ -572,22 +603,23 @@ int main(void)
 
 	printf("\n\rmaXTouch data USART transmitter\n\r");
 		
-	botao botoes[] = {numero_centri, numero_exagues, bubbles, heavy};
-	int numero_de_botoes = 3;
+	botao botoes[] = {numero_centri, numero_exagues, bubbles, heavy, but_next, but_back};
+	int numero_de_botoes = 5;
 	
-	t_ciclo *p_cAtual = initMenuOrder();
+	ciclo_atual = initMenuOrder();
 	
-	p_cAtual = p_cAtual->next;
-	
-	p_cAtual = p_cAtual->next;
-	ili9488_set_foreground_color(COLOR_BLACK);
-	ili9488_draw_string(220, 130, p_cAtual->nome);
+	draw_cicle();
 	
 	while (true) {
 		/* Check for any pending messages and run message handler if any
 		 * message is found in the queue */
 		if (mxt_is_message_pending(&device)) {
 			mxt_handler(&device, botoes, numero_de_botoes);
+		}
+		
+		if (f_but_back) {
+			ciclo_atual=ciclo_atual->previous;
+			draw_cicle();
 		}
 		
 		if (f_rtt_alarme){
