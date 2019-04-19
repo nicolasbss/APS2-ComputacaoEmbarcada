@@ -151,6 +151,7 @@ typedef struct{
 #include "icones/previous.h"
 #include "icones/wash.h"
 #include "icones/water.h"
+#include "icones/lock.h"
 
 botao numero_exagues;
 botao numero_centri;
@@ -276,6 +277,12 @@ void draw_screen(void) {
 	but_play.image->width,
 	but_play.image->height,
 	but_play.image->data);
+	
+	ili9488_draw_pixmap(but_lock.x,
+	but_lock.y,
+	but_lock.image->width,
+	but_lock.image->height,
+	but_lock.image->data);
 
 }
 
@@ -534,6 +541,7 @@ void config_buttons(){
 	but_lock.y = 10;
 	but_lock.size_x = 60;
 	but_lock.size_y = 60;
+	but_lock.image = &lock;
 	
 }
 
