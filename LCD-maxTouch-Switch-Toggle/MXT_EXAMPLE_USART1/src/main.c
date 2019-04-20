@@ -111,10 +111,10 @@ const uint32_t BUTTON_Y = ILI9488_LCD_HEIGHT/2;
  } tImage;
 
 typedef struct {
-	uint16_t x;
-	uint16_t y;
-	uint16_t size_x;
-	uint16_t size_y;
+	uint32_t x;
+	uint32_t y;
+	uint32_t size_x;
+	uint32_t size_y;
 	tImage *image;
 	void (*p_handler)(void);
 } botao;
@@ -152,6 +152,7 @@ typedef struct{
 #include "icones/wash.h"
 #include "icones/water.h"
 #include "icones/lock.h"
+#include "icones/unlocked.h"
 
 botao numero_exagues;
 botao numero_centri;
@@ -166,8 +167,10 @@ volatile int timer;
 volatile int hour;
 volatile int min;
 volatile int sec;
+volatile bool lock_flag = true;
 volatile int f_rtt_alarme;
 volatile t_ciclo *ciclo_atual;
+volatile int numero_de_botoes = 7;
 
 volatile int f_but_back = 0;
 
@@ -203,6 +206,20 @@ void but_next_callback(void) {
 }
 
 void but_lock_callback(void) {
+	if(lock_flag){
+	but_lock.image = &unlocked;
+	lock_flag = false;
+	}
+	else{
+		but_lock.image = &lock;
+		lock_flag = true;
+	}
+	
+	ili9488_draw_pixmap(but_lock.x,
+	but_lock.y,
+	but_lock.image->width,
+	but_lock.image->height,
+	but_lock.image->data);
 	
 }
 
@@ -231,7 +248,7 @@ static void configure_lcd(void){
 	ili9488_init(&g_ili9488_display_opt);
 }
 
-int processa_touch(botao *b, botao *rtn, uint N ,uint x, uint y ){
+int processa_touch(botao *b, botao *rtn, int N ,uint32_t x, uint32_t y ){
 	for (int i=0; i<N; i++){
 		if (((x >= b->x) && (x <= b->x + b->size_x)) && ((y >= b->y) && (y <= b->y + b->size_y))){
 			*rtn = *b;
@@ -593,9 +610,9 @@ int main(void)
 	board_init();  /* Initialize board */
 	configure_lcd();
 	draw_background();
+	config_buttons();
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
-	config_buttons();
 	draw_screen();
 	
 	/* Initialize stdio on USART */
@@ -603,8 +620,7 @@ int main(void)
 
 	printf("\n\rmaXTouch data USART transmitter\n\r");
 		
-	botao botoes[] = {numero_centri, numero_exagues, bubbles, heavy, but_next, but_back};
-	int numero_de_botoes = 5;
+	botao botoes[7] = {numero_centri, numero_exagues, bubbles, heavy, but_next, but_back, but_lock};
 	
 	ciclo_atual = initMenuOrder();
 	
