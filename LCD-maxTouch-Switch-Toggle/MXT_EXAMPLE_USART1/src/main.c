@@ -96,11 +96,6 @@
 #define USART_TX_MAX_LENGTH     0xff
 
 struct ili9488_opt_t g_ili9488_display_opt;
-const uint32_t BUTTON_W = 120;
-const uint32_t BUTTON_H = 150;
-const uint32_t BUTTON_BORDER = 2;
-const uint32_t BUTTON_X = ILI9488_LCD_WIDTH/2;
-const uint32_t BUTTON_Y = ILI9488_LCD_HEIGHT/2;
 
 
  typedef struct {
@@ -163,16 +158,18 @@ botao but_play;
 botao but_next;
 botao but_lock;
 
-volatile int timer;
+volatile int timer = 100000;
 volatile int hour;
 volatile int min;
 volatile int sec;
 volatile bool lock_flag = true;
-volatile int f_rtt_alarme;
 volatile t_ciclo *ciclo_atual;
-volatile int numero_de_botoes = 7;
+volatile int numero_de_botoes = 8;
 
+volatile int f_rtt_alarme = 0;
 volatile int f_but_back = 0;
+volatile int f_but_next = 0;
+volatile int f_but_play = 0;
 
 void draw_cicle(void);
 
@@ -193,7 +190,7 @@ void heavy_callback(void) {
 }
 
 void but_play_callback(void) {
-	
+	f_but_play = 1;
 }
 
 void but_back_callback(void) {
@@ -201,8 +198,7 @@ void but_back_callback(void) {
 }
 
 void but_next_callback(void) {
-	ciclo_atual=ciclo_atual->next;
-	draw_cicle();
+	f_but_next = 1;
 }
 
 void but_lock_callback(void) {
@@ -278,11 +274,44 @@ t_ciclo *initMenuOrder(){
 	return(&c_diario);
 }
 
+void draw_info(int index) {
+	
+	char Q[512];
+	char C[512];
+	char B[512];
+	char H[512];
+	
+	sprintf(Q, "x%d",  ciclo_atual->enxagueQnt);
+	sprintf(C, "x%d", ciclo_atual->centrifugacaoRPM);
+	sprintf(B, "%d", ciclo_atual->bubblesOn);
+	sprintf(H, "%d", ciclo_atual->heavy);
+	
+	if (index == 0) {
+		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+		ili9488_draw_filled_rectangle(80, 40, 150, 80);
+		ili9488_draw_filled_rectangle(80, 120, 150, 160);
+		ili9488_draw_filled_rectangle(80, 200, 150, 240);
+		ili9488_draw_filled_rectangle(80, 280, 150, 320);
+		
+		ili9488_set_foreground_color(COLOR_BLACK);		
+		ili9488_draw_string(80, 40, Q);
+		ili9488_draw_string(80, 120, C);
+		ili9488_draw_string(80, 200, B);
+		ili9488_draw_string(80, 280, H);
+	}
+	
+}
+
 void draw_timer() {
 	char A[512];
 	
-	sprintf(A, "%d", timer);
-	font_draw_text(&calibri_36, A, 50, 150, 1);
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+	ili9488_draw_filled_rectangle(150, 130, 420, 170);
+	
+	sprintf(A, "Tempo restante: %d min", timer);
+	
+	ili9488_set_foreground_color(COLOR_BLACK);
+	ili9488_draw_string(150, 130, A);
 }
 
 void draw_background(void) {
@@ -342,6 +371,9 @@ void draw_screen(void) {
 }
 
 void draw_cicle(void) {
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+	ili9488_draw_filled_rectangle(220, 130, 360, 170);
+	
 	ili9488_set_foreground_color(COLOR_BLACK);
 	ili9488_draw_string(220, 130, ciclo_atual->nome);
 }
@@ -470,13 +502,14 @@ void RTT_Handler(void)
 
 	/* Get RTT status */
 	ul_status = rtt_get_status(RTT);
-
+	
+	
 	/* IRQ due to Time has changed */
 	if ((ul_status & RTT_SR_RTTINC) == RTT_SR_RTTINC) {  }
 
 	/* IRQ due to Alarm */
 	if ((ul_status & RTT_SR_ALMS) == RTT_SR_ALMS) {
-		f_rtt_alarme = true;
+		f_rtt_alarme = 1;
 	}
 }
 
@@ -502,15 +535,17 @@ void mxt_handler(struct mxt_device *device, botao *botoes, int Nbotoes)
 		}
 		
 		 // eixos trocados (quando na vertical LCD)
-		uint32_t conv_x = convert_axis_system_x(touch_event.y);
-		uint32_t conv_y = convert_axis_system_y(touch_event.x);
+		uint32_t conv_y = convert_axis_system_x(touch_event.y);
+		uint32_t conv_x = convert_axis_system_y(touch_event.x);
 		
 		/* Format a new entry in the data string that will be sent over USART */
 		sprintf(buf, "Nr: %1d, X:%4d, Y:%4d, Status:0x%2x conv X:%3d Y:%3d\n\r",
 				touch_event.id, touch_event.x, touch_event.y,
 				touch_event.status, conv_x, conv_y);
+	
 		
-		
+		touch_event.id, touch_event.x, touch_event.y,
+		touch_event.status, conv_x, conv_y;
 		
 		last_status = touch_event.status;
 		
@@ -614,15 +649,20 @@ int main(void)
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
 	draw_screen();
+	draw_info(0);
 	
 	/* Initialize stdio on USART */
 	stdio_serial_init(USART_SERIAL_EXAMPLE, &usart_serial_options);
 
 	printf("\n\rmaXTouch data USART transmitter\n\r");
 		
-	botao botoes[7] = {numero_centri, numero_exagues, bubbles, heavy, but_next, but_back, but_lock};
+	botao botoes[8] = {numero_centri, numero_exagues, bubbles, heavy, but_next, but_back, but_lock, but_play};
 	
 	ciclo_atual = initMenuOrder();
+	ciclo_atual = ciclo_atual->next;
+	
+	uint16_t pllPreScale = (int) (((float) 32768) / 1.0);
+	uint32_t irqRTTvalue  = 60; // 1 minuto
 	
 	draw_cicle();
 	
@@ -636,21 +676,34 @@ int main(void)
 		if (f_but_back) {
 			ciclo_atual=ciclo_atual->previous;
 			draw_cicle();
+			draw_info(0);
+			f_but_back = 0;
+		}
+		
+		if (f_but_next) {
+			ciclo_atual=ciclo_atual->previous;
+			draw_cicle();
+			draw_info(0);
+			f_but_next = 0;
+		}
+		
+		if (f_but_play) {
+			RTT_init(pllPreScale, 1);
+			timer = ciclo_atual->enxagueTempo + ciclo_atual->centrifugacaoTempo;	
+			f_but_play = 0;
 		}
 		
 		if (f_rtt_alarme){
-			
-			uint16_t pllPreScale = (int) (((float) 32768) / 1.0);
-			uint32_t irqRTTvalue  = 60; // 1 minuto
-			
+					
 			// reinicia RTT para gerar um novo IRQ
 			RTT_init(pllPreScale, irqRTTvalue);
 			
+			timer -= 1;
 			draw_timer();
 			/*
 			* CLEAR FLAG
 			*/
-			f_rtt_alarme = false;
+			f_rtt_alarme = 0;
 
 		}
 		
