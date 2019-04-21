@@ -148,6 +148,7 @@ typedef struct{
 #include "icones/water.h"
 #include "icones/lock.h"
 #include "icones/unlocked.h"
+#include "icones/locked.h"
 
 botao numero_exagues;
 botao numero_centri;
@@ -162,7 +163,7 @@ volatile int timer = 100000;
 volatile int hour;
 volatile int min;
 volatile int sec;
-volatile bool lock_flag = true;
+volatile bool lock_flag = false;
 volatile t_ciclo *ciclo_atual;
 volatile int numero_de_botoes = 8;
 
@@ -205,10 +206,12 @@ void but_lock_callback(void) {
 	if(lock_flag){
 	but_lock.image = &unlocked;
 	lock_flag = false;
+	numero_de_botoes = 8;
 	}
 	else{
-		but_lock.image = &lock;
+		but_lock.image = &locked;
 		lock_flag = true;
+		numero_de_botoes = 1;
 	}
 	
 	ili9488_draw_pixmap(but_lock.x,
@@ -282,7 +285,7 @@ void draw_info(int index) {
 	char H[512];
 	
 	sprintf(Q, "x%d",  ciclo_atual->enxagueQnt);
-	sprintf(C, "x%d", ciclo_atual->centrifugacaoRPM);
+	sprintf(C, "x%d", ciclo_atual->centrifugacaoTempo);
 	sprintf(B, "%d", ciclo_atual->bubblesOn);
 	sprintf(H, "%d", ciclo_atual->heavy);
 	
@@ -624,7 +627,7 @@ void config_buttons(){
 	but_lock.y = 10;
 	but_lock.size_x = 60;
 	but_lock.size_y = 60;
-	but_lock.image = &lock;
+	but_lock.image = &unlocked;
 	but_lock.p_handler = but_lock_callback;
 	
 }
@@ -640,6 +643,7 @@ int main(void)
 		.paritytype   = USART_SERIAL_PARITY,
 		.stopbits     = USART_SERIAL_STOP_BIT
 	};
+	
 
 	sysclk_init(); /* Initialize system clocks */
 	board_init();  /* Initialize board */
@@ -649,6 +653,8 @@ int main(void)
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
 	draw_screen();
+	ciclo_atual = initMenuOrder();
+	ciclo_atual = ciclo_atual->next;
 	draw_info(0);
 	
 	/* Initialize stdio on USART */
@@ -656,7 +662,7 @@ int main(void)
 
 	printf("\n\rmaXTouch data USART transmitter\n\r");
 		
-	botao botoes[8] = {numero_centri, numero_exagues, bubbles, heavy, but_next, but_back, but_lock, but_play};
+	botao botoes[8] = {but_lock, but_play, numero_centri, numero_exagues, bubbles, heavy, but_next, but_back};
 	
 	ciclo_atual = initMenuOrder();
 	ciclo_atual = ciclo_atual->next;
