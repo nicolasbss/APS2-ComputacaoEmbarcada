@@ -183,23 +183,27 @@ volatile int f_rtt_alarme = 0;
 volatile int f_but_back = 0;
 volatile int f_but_next = 0;
 volatile int f_but_play = 0;
+volatile int f_but_nexagues = 0;
+volatile int f_but_ncentri = 0;
+volatile int f_but_bubbles = 0;
+volatile int f_but_heavy = 0;
 
 void draw_cicle(void);
 
 void numero_exagues_callback(void) {
-	
+	f_but_nexagues = 1;
 }
 
 void numero_centri_callback(void) {
-	
+	f_but_ncentri = 1;
 }
 
 void bubbles_callback(void) {
-	
+	f_but_bubbles = 1;
 }
 
 void heavy_callback(void) {
-	
+	f_but_heavy = 1;
 }
 
 void but_play_callback(void) {
@@ -358,16 +362,16 @@ void draw_info(int index) {
 	
 }
 
-void draw_timer() {
+void draw_timer(int x, int y, int tempo) {
 	char A[512];
 	
 	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
-	ili9488_draw_filled_rectangle(150, 130, 420, 170);
+	ili9488_draw_filled_rectangle(x, y, x+270, y+40);
 	
-	sprintf(A, "Tempo restante: %d min", timer);
+	sprintf(A, "Tempo de lavagem: %d min", tempo);
 	
 	ili9488_set_foreground_color(COLOR_BLACK);
-	ili9488_draw_string(150, 130, A);
+	ili9488_draw_string(x, y, A);
 }
 
 void draw_background(void) {
@@ -430,11 +434,21 @@ void draw_screen(void) {
 }
 
 void draw_cicle(void) {
+	
+	char F[512];
+	sprintf(F, "Ciclo atual: %s", ciclo_atual->nome);
+	
+	
+	
 	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
-	ili9488_draw_filled_rectangle(220, 130, 360, 170);
+	ili9488_draw_filled_rectangle(160, 130, 420, 170);
+
 	
 	ili9488_set_foreground_color(COLOR_BLACK);
-	ili9488_draw_string(220, 130, ciclo_atual->nome);
+	ili9488_draw_string(160, 130, F);	
+	draw_timer(160, 170, ciclo_atual->centrifugacaoTempo+ciclo_atual->enxagueTempo);
+	
+	
 }
 
 uint32_t convert_axis_system_x(uint32_t touch_y) {
@@ -753,7 +767,11 @@ int main(void)
 		
 		if (f_but_play) {
 			RTT_init(pllPreScale, 1);
-			timer = ciclo_atual->enxagueTempo + ciclo_atual->centrifugacaoTempo;	
+			timer = ciclo_atual->enxagueTempo + ciclo_atual->centrifugacaoTempo;
+			
+			ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+			ili9488_draw_filled_rectangle(160, 170, 450, 200);
+			
 			f_but_play = 0;
 		}
 		
@@ -763,13 +781,61 @@ int main(void)
 			RTT_init(pllPreScale, irqRTTvalue);
 			
 			timer -= 1;
-			draw_timer();
+			draw_timer(150, 130, timer);
 			/*
 			* CLEAR FLAG
 			*/
 			f_rtt_alarme = 0;
-
 		}
+		
+		if (f_but_nexagues) {
+			
+			if (ciclo_atual->enxagueQnt <=6) {
+				ciclo_atual->enxagueQnt += 1;
+			} else {
+				ciclo_atual->enxagueQnt = 0;
+			}
+			
+			draw_info(0);
+			f_but_nexagues = 0;
+		}
+		
+		if (f_but_ncentri) {
+			
+			if (ciclo_atual->centrifugacaoTempo <= 12) {
+				ciclo_atual->centrifugacaoTempo += 1;
+				} else {
+				ciclo_atual->centrifugacaoTempo = 0;
+			}
+			
+			draw_info(0);
+			f_but_ncentri = 0;
+		}
+		
+		if (f_but_bubbles) {
+			
+			if (ciclo_atual->bubblesOn) {
+				ciclo_atual->bubblesOn = 0;
+				} else {
+				ciclo_atual->bubblesOn = 1;
+			}
+			
+			draw_info(0);
+			f_but_bubbles = 0;
+		}
+		
+		if (f_but_heavy) {
+			
+			if (ciclo_atual->heavy) {
+				ciclo_atual->heavy = 0;
+				} else {
+				ciclo_atual->heavy = 1;
+			}
+			
+			draw_info(0);
+			f_but_heavy = 0;
+		}
+		
 		
 	}
 
