@@ -94,6 +94,12 @@
 #define STRING_LENGTH     70
 
 #define USART_TX_MAX_LENGTH     0xff
+#define COLOR_BLUE           (0x0000FFu)
+#define COLOR_GREEN          (0x00FF00u)
+#define COLOR_RED            (0xFF0000u)
+#define COLOR_NAVY           (0x000080u)
+#define COLOR_DARKCYAN       (0x008B8Bu)
+#define COLOR_TURQUOISE      (0x40E0D0u)
 
 struct ili9488_opt_t g_ili9488_display_opt;
 
@@ -131,6 +137,11 @@ typedef struct{
 	  char start_char;
 	  char end_char;
   } tFont;
+  
+  #define BUT_PIO      PIOA
+  #define BUT_PIO_ID   ID_PIOA
+  #define BUT_IDX  11
+  #define BUT_IDX_MASK (1 << BUT_IDX)
 	
 #include "conf_board.h"
 #include "conf_example.h"
@@ -163,10 +174,11 @@ volatile int timer = 100000;
 volatile int hour;
 volatile int min;
 volatile int sec;
-volatile bool lock_flag = false;
+volatile bool lock_flag = true;
 volatile t_ciclo *ciclo_atual;
 volatile int numero_de_botoes = 8;
 
+volatile bool flag_porta_aberta = false;
 volatile int f_rtt_alarme = 0;
 volatile int f_but_back = 0;
 volatile int f_but_next = 0;
@@ -220,6 +232,47 @@ void but_lock_callback(void) {
 	but_lock.image->height,
 	but_lock.image->data);
 	
+}
+
+void but_callback(void){
+	if (flag_porta_aberta)
+	{
+		flag_porta_aberta = false;
+		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_GREEN));
+		ili9488_draw_filled_circle(445, 30, 20);
+	}
+	else{
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_RED));
+	ili9488_draw_filled_circle(445, 30, 20);
+	flag_porta_aberta = true;
+	}
+}
+
+void io_init(void)
+{
+	// Inicializa clock do periférico PIO responsavel pelo botao
+	pmc_enable_periph_clk(BUT_PIO_ID);
+
+	// Configura PIO para lidar com o pino do botão como entrada
+	// com pull-up
+	pio_configure(BUT_PIO, PIO_INPUT, BUT_IDX_MASK, PIO_PULLUP);
+
+	// Configura interrupção no pino referente ao botao e associa
+	// função de callback caso uma interrupção for gerada
+	// a função de callback é a: but_callback()
+	pio_handler_set(BUT_PIO,
+	BUT_PIO_ID,
+	BUT_IDX_MASK,
+	PIO_IT_FALL_EDGE,
+	but_callback);
+
+	// Ativa interrupção
+	pio_enable_interrupt(BUT_PIO, BUT_IDX_MASK);
+
+	// Configura NVIC para receber interrupcoes do PIO do botao
+	// com prioridade 4 (quanto mais próximo de 0 maior)
+	NVIC_EnableIRQ(BUT_PIO_ID);
+	NVIC_SetPriority(BUT_PIO_ID, 4); // Prioridade 4
 }
 
 void font_draw_text(tFont *font, const char *text, int x, int y, int spacing) {
@@ -370,6 +423,9 @@ void draw_screen(void) {
 	but_lock.image->width,
 	but_lock.image->height,
 	but_lock.image->data);
+	
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_RED));
+	ili9488_draw_filled_circle(445, 30, 20);
 
 }
 
@@ -647,6 +703,7 @@ int main(void)
 
 	sysclk_init(); /* Initialize system clocks */
 	board_init();  /* Initialize board */
+	io_init();
 	configure_lcd();
 	draw_background();
 	config_buttons();
@@ -664,8 +721,6 @@ int main(void)
 		
 	botao botoes[8] = {but_lock, but_play, numero_centri, numero_exagues, bubbles, heavy, but_next, but_back};
 	
-	ciclo_atual = initMenuOrder();
-	ciclo_atual = ciclo_atual->next;
 	
 	uint16_t pllPreScale = (int) (((float) 32768) / 1.0);
 	uint32_t irqRTTvalue  = 60; // 1 minuto
@@ -675,8 +730,11 @@ int main(void)
 	while (true) {
 		/* Check for any pending messages and run message handler if any
 		 * message is found in the queue */
+		if (!flag_porta_aberta)
+		{
 		if (mxt_is_message_pending(&device)) {
 			mxt_handler(&device, botoes, numero_de_botoes);
+		}
 		}
 		
 		if (f_but_back) {
