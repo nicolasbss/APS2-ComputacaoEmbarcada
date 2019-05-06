@@ -36,8 +36,7 @@
 
 
 #include <stdint.h>
-#include "tfont.h"
-
+#include "tipos.h"
 
 #if (0x0 == 0x0)
 static const uint8_t image_data_calibri_36_0x20[888] = {

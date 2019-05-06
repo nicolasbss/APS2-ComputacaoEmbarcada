@@ -36,7 +36,7 @@
 */
 
 #include <stdint.h>
-#include "tfont.h"
+#include "tipos.h"
 
 
 #if (0x0 == 0x0)

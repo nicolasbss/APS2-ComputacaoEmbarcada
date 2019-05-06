@@ -102,47 +102,7 @@
 #define COLOR_TURQUOISE      (0x40E0D0u)
 
 struct ili9488_opt_t g_ili9488_display_opt;
-
-
- typedef struct {
-	 const uint8_t *data;
-	 uint16_t width;
-	 uint16_t height;
-	 uint8_t dataSize;
- } tImage;
-
-typedef struct {
-	uint32_t x;
-	uint32_t y;
-	uint32_t size_x;
-	uint32_t size_y;
-	tImage *image;
-	void (*p_handler)(void);
-} botao;
-
-typedef struct{
-	uint16_t x;
-	uint16_t y;
-	tImage *image;
-	}imagem;
-	
- typedef struct {
-	 long int code;
-	 const tImage *image;
- } tChar;
- 
-  typedef struct {
-	  int length;
-	  const tChar *chars;
-	  char start_char;
-	  char end_char;
-  } tFont;
   
-  #define BUT_PIO      PIOA
-  #define BUT_PIO_ID   ID_PIOA
-  #define BUT_IDX  11
-  #define BUT_IDX_MASK (1 << BUT_IDX)
-	
 #include "conf_board.h"
 #include "conf_example.h"
 #include "conf_uart_serial.h"
@@ -160,6 +120,13 @@ typedef struct{
 #include "icones/lock.h"
 #include "icones/unlocked.h"
 #include "icones/locked.h"
+#include "coordenadas.h"
+
+
+#define BUT_PIO      PIOA
+#define BUT_PIO_ID   ID_PIOA
+#define BUT_IDX  11
+#define BUT_IDX_MASK (1 << BUT_IDX)
 
 botao numero_exagues;
 botao numero_centri;
@@ -170,10 +137,6 @@ botao but_play;
 botao but_next;
 botao but_lock;
 
-volatile int timer = 100000;
-volatile int hour;
-volatile int min;
-volatile int sec;
 volatile bool lock_flag = true;
 volatile t_ciclo *ciclo_atual;
 volatile int numero_de_botoes = 8;
@@ -239,18 +202,18 @@ void but_lock_callback(void) {
 }
 
 void but_callback(void){
+	uint32_t color;
 	if (flag_porta_aberta)
 	{
-		flag_porta_aberta = false;
-		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_GREEN));
-		ili9488_draw_filled_circle(445, 30, 20);
+		color = COLOR_GREEN;
+		} else{
+		color = COLOR_RED;
 	}
-	else{
-	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_RED));
+	flag_porta_aberta = !flag_porta_aberta;
+	ili9488_set_foreground_color(COLOR_CONVERT(color));
 	ili9488_draw_filled_circle(445, 30, 20);
-	flag_porta_aberta = true;
-	}
 }
+
 
 void io_init(void)
 {
@@ -334,7 +297,7 @@ t_ciclo *initMenuOrder(){
 	return(&c_diario);
 }
 
-void draw_info(int index) {
+void draw_info() {
 	
 	char Q[512];
 	char C[512];
@@ -346,7 +309,7 @@ void draw_info(int index) {
 	sprintf(B, "%d", ciclo_atual->bubblesOn);
 	sprintf(H, "%d", ciclo_atual->heavy);
 	
-	if (index == 0) {
+	
 		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
 		ili9488_draw_filled_rectangle(80, 40, 150, 80);
 		ili9488_draw_filled_rectangle(80, 120, 150, 160);
@@ -354,11 +317,10 @@ void draw_info(int index) {
 		ili9488_draw_filled_rectangle(80, 280, 150, 320);
 		
 		ili9488_set_foreground_color(COLOR_BLACK);		
-		ili9488_draw_string(80, 40, Q);
-		ili9488_draw_string(80, 120, C);
-		ili9488_draw_string(80, 200, B);
-		ili9488_draw_string(80, 280, H);
-	}
+		ili9488_draw_string(Q_X,Q_Y, Q);
+		ili9488_draw_string(C_X, C_Y, C);
+		ili9488_draw_string(B_X, B_Y, B);
+		ili9488_draw_string(H_X, H_Y, H);
 	
 }
 
@@ -379,7 +341,25 @@ void draw_background(void) {
 	ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
 }
 
+void draw_botao(botao *but) {
+	ili9488_draw_pixmap(but->x, but->y, but->image->width, but->image->height, but->image->data);
+}
+
 void draw_screen(void) {
+	draw_botao(&numero_exagues);
+	draw_botao(&numero_centri);
+	draw_botao(&bubbles);
+	draw_botao(&heavy);
+	draw_botao(&but_back);
+	draw_botao(&but_next);
+	draw_botao(&but_play);
+	draw_botao(&but_lock);
+	
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_RED));
+	ili9488_draw_filled_circle(445, 30, 20);
+}
+
+void draw_screen1(void) {
 	ili9488_draw_pixmap(numero_exagues.x,
 	numero_exagues.y,
 	numero_exagues.image->width,
@@ -576,9 +556,7 @@ void RTT_Handler(void)
 	/* Get RTT status */
 	ul_status = rtt_get_status(RTT);
 	
-	
-	/* IRQ due to Time has changed */
-	if ((ul_status & RTT_SR_RTTINC) == RTT_SR_RTTINC) {  }
+
 
 	/* IRQ due to Alarm */
 	if ((ul_status & RTT_SR_ALMS) == RTT_SR_ALMS) {
@@ -714,6 +692,7 @@ int main(void)
 		.stopbits     = USART_SERIAL_STOP_BIT
 	};
 	
+	int timer = 100000;
 
 	sysclk_init(); /* Initialize system clocks */
 	board_init();  /* Initialize board */
@@ -726,14 +705,14 @@ int main(void)
 	draw_screen();
 	ciclo_atual = initMenuOrder();
 	ciclo_atual = ciclo_atual->next;
-	draw_info(0);
+	draw_info();
 	
 	/* Initialize stdio on USART */
 	stdio_serial_init(USART_SERIAL_EXAMPLE, &usart_serial_options);
 
 	printf("\n\rmaXTouch data USART transmitter\n\r");
 		
-	botao botoes[8] = {but_lock, but_play, numero_centri, numero_exagues, bubbles, heavy, but_next, but_back};
+	const botao botoes[8] = {but_lock, but_play, numero_centri, numero_exagues, bubbles, heavy, but_next, but_back};
 	
 	
 	uint16_t pllPreScale = (int) (((float) 32768) / 1.0);
@@ -754,14 +733,14 @@ int main(void)
 		if (f_but_back) {
 			ciclo_atual=ciclo_atual->previous;
 			draw_cicle();
-			draw_info(0);
+			draw_info();
 			f_but_back = 0;
 		}
 		
 		if (f_but_next) {
 			ciclo_atual=ciclo_atual->previous;
 			draw_cicle();
-			draw_info(0);
+			draw_info();
 			f_but_next = 0;
 		}
 		
@@ -796,7 +775,7 @@ int main(void)
 				ciclo_atual->enxagueQnt = 0;
 			}
 			
-			draw_info(0);
+			draw_info();
 			f_but_nexagues = 0;
 		}
 		
@@ -808,7 +787,7 @@ int main(void)
 				ciclo_atual->centrifugacaoTempo = 0;
 			}
 			
-			draw_info(0);
+			draw_info();
 			f_but_ncentri = 0;
 		}
 		
@@ -820,7 +799,7 @@ int main(void)
 				ciclo_atual->bubblesOn = 1;
 			}
 			
-			draw_info(0);
+			draw_info();
 			f_but_bubbles = 0;
 		}
 		

@@ -25,7 +25,7 @@
      } tImage;
 */
 #include <stdint.h>
-
+#include "tipos.h"
 
 
 static const uint8_t image_data_Previous[33330] = {
